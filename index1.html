@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ลงทะเบียน PSRU Safety Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;700&display=swap');
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background-color: #f4f4f5; /* Zinc 100 */
+        }
+        .form-input {
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .form-input:focus {
+            border-color: #2563eb; /* Blue 600 */
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4);
+        }
+        .submit-btn:disabled {
+            background-color: #9ca3af; /* Gray 400 */
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <div id="loading-screen" class="text-center">
+        <p class="text-gray-600">กำลังเชื่อมต่อกับ LINE...</p>
+    </div>
+
+    <div id="main-content" class="hidden w-full max-w-md bg-white p-8 rounded-2xl shadow-lg">
+        <div class="text-center mb-6">
+            <h1 class="text-2xl font-bold text-blue-900">ลงทะเบียนเข้าใช้งาน</h1>
+            <p class="text-gray-500">PSRU Safety Hub</p>
+        </div>
+
+        <form id="registration-form">
+            <!-- Hidden field for LINE User ID -->
+            <input type="hidden" id="lineUserId" name="lineUserId">
+
+            <div class="space-y-4">
+                <div>
+                    <label for="firstName" class="block text-sm font-medium text-gray-700">ชื่อ</label>
+                    <input type="text" id="firstName" name="firstName" required class="form-input mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none sm:text-sm">
+                </div>
+                <div>
+                    <label for="lastName" class="block text-sm font-medium text-gray-700">นามสกุล</label>
+                    <input type="text" id="lastName" name="lastName" required class="form-input mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none sm:text-sm">
+                </div>
+                <div>
+                    <label for="phone" class="block text-sm font-medium text-gray-700">เบอร์โทรศัพท์</label>
+                    <input type="tel" id="phone" name="phone" required class="form-input mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none sm:text-sm" placeholder="0812345678">
+                </div>
+                <div>
+                    <label for="emergencyPhone" class="block text-sm font-medium text-gray-700">เบอร์โทรติดต่อฉุกเฉิน</label>
+                    <input type="tel" id="emergencyPhone" name="emergencyPhone" required class="form-input mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none sm:text-sm" placeholder="เบอร์ผู้ปกครองหรือบุคคลที่ไว้ใจ">
+                </div>
+            </div>
+
+            <!-- Consent Section -->
+            <div class="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <h3 class="text-sm font-bold text-gray-800 mb-2">คำชี้แจงการเก็บข้อมูลส่วนบุคคล</h3>
+                <p class="text-xs text-gray-600 mb-4">มหาวิทยาลัยจะเก็บรวบรวมข้อมูลของท่าน ได้แก่ ชื่อ-นามสกุล, เบอร์โทรศัพท์, และ LINE User ID เพื่อวัตถุประสงค์ในการยืนยันตัวตนและประสานงานให้ความช่วยเหลือในกรณีที่ท่านแจ้งเหตุฉุกเฉินผ่านระบบ PSRU Safety Hub เท่านั้น ข้อมูลของท่านจะถูกเก็บรักษาเป็นความลับตาม พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล</p>
+                <div class="flex items-start">
+                    <input id="consent" name="consent" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded mt-1 focus:ring-blue-500">
+                    <label for="consent" class="ml-2 block text-sm text-gray-900">ข้าพเจ้ารับทราบและยินยอมให้เก็บรวบรวมข้อมูลส่วนบุคคล</label>
+                </div>
+            </div>
+
+            <!-- Submit Button -->
+            <div class="mt-6">
+                <button type="submit" id="submit-button" disabled class="submit-btn w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    ลงทะเบียน
+                </button>
+            </div>
+        </form>
+        <div id="status-message" class="mt-4 text-center text-sm"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const mainContent = document.getElementById('main-content');
+            const loadingScreen = document.getElementById('loading-screen');
+            const consentCheckbox = document.getElementById('consent');
+            const submitButton = document.getElementById('submit-button');
+            const form = document.getElementById('registration-form');
+            const statusMessage = document.getElementById('status-message');
+            const lineUserIdInput = document.getElementById('lineUserId');
+
+            // --- LIFF Initialization ---
+            // ในการใช้งานจริง ต้องใส่ LIFF ID ของคุณที่ได้จาก LINE Developers Console
+            try {
+                await liff.init({ liffId: "2007822422-YbW1q6lR" }); // <-- แทนที่ด้วย LIFF ID ของคุณ
+
+                if (!liff.isLoggedIn()) {
+                    // ถ้าผู้ใช้ยังไม่ได้ล็อกอิน ให้ทำการล็อกอิน
+                    liff.login();
+                } else {
+                    // ถ้าล็อกอินแล้ว ให้ดึงโปรไฟล์
+                    const profile = await liff.getProfile();
+                    
+                    // ส่วนสำคัญ: นำ LINE User ID ไปใส่ใน hidden input
+                    lineUserIdInput.value = profile.userId;
+                    
+                    // แสดงฟอร์มและซ่อนหน้า loading
+                    loadingScreen.classList.add('hidden');
+                    mainContent.classList.remove('hidden');
+                }
+            } catch (error) {
+                loadingScreen.innerHTML = `<p class="text-red-600">เกิดข้อผิดพลาดในการเชื่อมต่อกับ LINE: ${error.message}<br>กรุณาเปิดลิงก์นี้ผ่านแอปพลิเคชัน LINE</p>`;
+            }
+
+            // --- Form Logic ---
+            consentCheckbox.addEventListener('change', () => {
+                submitButton.disabled = !consentCheckbox.checked;
+            });
+
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                submitButton.disabled = true;
+                submitButton.textContent = 'กำลังบันทึก...';
+                statusMessage.textContent = '';
+
+                // รวบรวมข้อมูลจากฟอร์ม
+                const formData = new FormData(form);
+                const data = Object.fromEntries(formData.entries());
+
+                // --- Backend Submission (จำลอง) ---
+                // ในการใช้งานจริง ส่วนนี้จะส่งข้อมูล `data` ไปยังเซิร์ฟเวอร์ของคุณ
+                console.log('Submitting data to backend:', data);
+                
+                // จำลองการส่งข้อมูล
+                await new Promise(resolve => setTimeout(resolve, 1500));
+
+                // แสดงผลลัพธ์
+                statusMessage.textContent = 'ลงทะเบียนสำเร็จ! หน้านี้จะปิดใน 3 วินาที';
+                statusMessage.classList.add('text-green-600');
+                
+                // ปิดหน้าต่าง LIFF หลังจากลงทะเบียนสำเร็จ
+                setTimeout(() => {
+                    if (liff.isInClient()) {
+                        liff.closeWindow();
+                    }
+                }, 3000);
+            });
+        });
+    </script>
+</body>
+</html>
